@@ -1,0 +1,26 @@
+{
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+  "frame": {
+    "version": "1",
+    "name": "Scratch & Win",
+    "subtitle": "Scratch to reveal prizes",
+    "description": "A fun scratch card game on Base. Scratch to reveal your prize and track your winning streak!",
+    "iconUrl": "https://scratch-win-iota.vercel.app/icon.png",
+    "homeUrl": "https://scratch-win-iota.vercel.app",
+    "imageUrl": "https://scratch-win-iota.vercel.app/preview.png",
+    "splashImageUrl": "https://scratch-win-iota.vercel.app/icon.png",
+    "splashBackgroundColor": "#0d0d1a",
+    "primaryCategory": "games",
+    "tags": ["game", "arcade", "scratch", "farcaster"],
+    "tagline": "Scratch & Win prizes!",
+    "heroImageUrl": "https://scratch-win-iota.vercel.app/preview.png",
+    "screenshotUrls": ["https://scratch-win-iota.vercel.app/preview.png"],
+    "ogTitle": "Scratch & Win",
+    "ogDescription": "Scratch to reveal your prize on Base!",
+    "ogImageUrl": "https://scratch-win-iota.vercel.app/preview.png"
+  }
+}
