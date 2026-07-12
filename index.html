@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="fc:frame" content="vNext">
+  <meta name="base:app_id" content="[SONRA EKLENECEK]">
+  <title>Scratch & Win</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">🎰</div>
+      <h1>Scratch & Win</h1>
+      <p class="subtitle">Scratch to reveal your prize!</p>
+      <button class="btn-wallet" id="btnWallet" onclick="connectWallet()">🔗 Connect Wallet</button>
+      <span class="wallet-badge" id="walletBadge" style="display:none"></span>
+    </header>
+
+    <div class="game-area">
+      <div class="ticket" id="ticket">
+        <canvas id="scratchCanvas" width="300" height="300"></canvas>
+        <div class="prize-reveal" id="prizeReveal">
+          <div class="prize-emoji" id="prizeEmoji"></div>
+          <div class="prize-text" id="prizeText"></div>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <p class="progress-label" id="progressLabel">Scratch to reveal...</p>
+    </div>
+
+    <div class="result" id="result" style="display:none">
+      <div class="result-icon" id="resultIcon"></div>
+      <div class="result-title" id="resultTitle"></div>
+      <div class="result-desc" id="resultDesc"></div>
+    </div>
+
+    <button class="btn-play" id="btnPlay" onclick="newGame()">🎟️ New Ticket</button>
+
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-val" id="statPlays">0</span>
+        <span class="stat-label">Played</span>
+      </div>
+      <div class="stat">
+        <span class="stat-val" id="statWins">0</span>
+        <span class="stat-label">Won</span>
+      </div>
+      <div class="stat">
+        <span class="stat-val" id="statStreak">0</span>
+        <span class="stat-label">Streak</span>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="game.js"></script>
+</body>
+</html>

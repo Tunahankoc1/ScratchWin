@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Icon Generator</title>
+  <style>
+    body { background: #0d0d1a; color: white; font-family: sans-serif; padding: 20px; display: flex; flex-direction: column; gap: 20px; align-items: flex-start; }
+    canvas { border-radius: 20px; }
+    button { padding: 12px 24px; background: #f5c518; color: #000; border: none; border-radius: 99px; font-weight: 800; font-size: 14px; cursor: pointer; }
+    h3 { color: #f5c518; }
+  </style>
+</head>
+<body>
+  <h3>Icon (200x200)</h3>
+  <canvas id="icon" width="200" height="200"></canvas>
+  <button onclick="download('icon')">Download icon.png</button>
+
+  <h3>Preview (600x400)</h3>
+  <canvas id="preview" width="600" height="400"></canvas>
+  <button onclick="download('preview')">Download preview.png</button>
+
+  <script>
+    function drawIcon() {
+      const c = document.getElementById('icon');
+      const ctx = c.getContext('2d');
+      const g = ctx.createLinearGradient(0, 0, 200, 200);
+      g.addColorStop(0, '#1a1a2e');
+      g.addColorStop(1, '#16213e');
+      ctx.fillStyle = g;
+      ctx.roundRect(0, 0, 200, 200, 30);
+      ctx.fill();
+
+      // Gold circle
+      const cg = ctx.createRadialGradient(100, 90, 10, 100, 90, 70);
+      cg.addColorStop(0, '#f5c518');
+      cg.addColorStop(1, '#b8860b');
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.arc(100, 90, 60, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Emoji
+      ctx.font = '56px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🎰', 100, 90);
+
+      // Text
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillStyle = '#f5c518';
+      ctx.fillText('SCRATCH', 100, 162);
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillStyle = '#ffffff88';
+      ctx.fillText('& WIN', 100, 182);
+    }
+
+    function drawPreview() {
+      const c = document.getElementById('preview');
+      const ctx = c.getContext('2d');
+      const g = ctx.createLinearGradient(0, 0, 600, 400);
+      g.addColorStop(0, '#0d0d1a');
+      g.addColorStop(1, '#1a1a2e');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 600, 400);
+
+      // Gold accent bar
+      const ag = ctx.createLinearGradient(0, 0, 600, 0);
+      ag.addColorStop(0, '#f5c518');
+      ag.addColorStop(1, '#ff9a00');
+      ctx.fillStyle = ag;
+      ctx.fillRect(0, 0, 600, 6);
+
+      // Ticket visual
+      ctx.save();
+      ctx.shadowColor = 'rgba(245,197,24,0.5)';
+      ctx.shadowBlur = 40;
+      const tg = ctx.createLinearGradient(180, 80, 420, 320);
+      tg.addColorStop(0, '#c9a227');
+      tg.addColorStop(0.5, '#f5c518');
+      tg.addColorStop(1, '#b8860b');
+      ctx.fillStyle = tg;
+      ctx.roundRect(180, 80, 240, 240, 20);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.font = '90px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🎰', 300, 200);
+
+      // Title
+      ctx.font = 'bold 42px sans-serif';
+      const textG = ctx.createLinearGradient(0, 0, 600, 0);
+      textG.addColorStop(0, '#f5c518');
+      textG.addColorStop(1, '#ff9a00');
+      ctx.fillStyle = textG;
+      ctx.fillText('Scratch & Win', 300, 360);
+
+      ctx.font = '16px sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText('Scratch to reveal your prize on Base', 300, 388);
+    }
+
+    function download(id) {
+      const c = document.getElementById(id);
+      const a = document.createElement('a');
+      a.download = id + '.png';
+      a.href = c.toDataURL('image/png');
+      a.click();
+    }
+
+    drawIcon();
+    drawPreview();
+  </script>
+</body>
+</html>

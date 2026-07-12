@@ -1,0 +1,172 @@
+import { sdk } from 'https://esm.sh/@farcaster/frame-sdk';
+sdk.actions.ready();
+
+const PRIZES = [
+  { emoji: '💎', text: 'DIAMOND JACKPOT!', win: true, chance: 3 },
+  { emoji: '🥇', text: 'GOLD WINNER!', win: true, chance: 8 },
+  { emoji: '🎁', text: 'MYSTERY PRIZE!', win: true, chance: 14 },
+  { emoji: '⭐', text: 'LUCKY STAR!', win: true, chance: 20 },
+  { emoji: '💸', text: 'BETTER LUCK NEXT TIME', win: false, chance: 30 },
+  { emoji: '😢', text: 'NO LUCK TRY AGAIN', win: false, chance: 25 },
+];
+
+let canvas, ctx, isScratching, revealed;
+let stats = JSON.parse(localStorage.getItem('sw_stats') || '{"plays":0,"wins":0,"streak":0}');
+let currentPrize = null;
+let walletAddress = null;
+
+async function connectWallet() {
+  try {
+    // Coinbase Wallet'ı tercih et
+    const provider = window.ethereum?.providers?.find(p => p.isCoinbaseWallet)
+      || (window.ethereum?.isCoinbaseWallet ? window.ethereum : null)
+      || window.ethereum;
+
+    if (!provider) {
+      alert('Please install Coinbase Wallet extension!');
+      return;
+    }
+
+    const accounts = await provider.request({ method: 'eth_requestAccounts' });
+    walletAddress = accounts[0];
+
+    // Base mainnet'e geç (chain id: 8453)
+    try {
+      await provider.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x2105' }],
+      });
+    } catch (e) {
+      // Base eklenmemişse ekle
+      if (e.code === 4902) {
+        await provider.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: '0x2105',
+            chainName: 'Base',
+            nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+            rpcUrls: ['https://mainnet.base.org'],
+            blockExplorerUrls: ['https://basescan.org'],
+          }],
+        });
+      }
+    }
+
+    updateWalletUI();
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function updateWalletUI() {
+  const btn = document.getElementById('btnWallet');
+  const badge = document.getElementById('walletBadge');
+  if (walletAddress) {
+    const short = walletAddress.slice(0, 6) + '...' + walletAddress.slice(-4);
+    btn.textContent = '✅ ' + short;
+    btn.style.background = 'rgba(0,230,118,0.15)';
+    btn.style.color = '#00e676';
+    btn.style.border = '1px solid #00e676';
+    badge.style.display = 'block';
+    badge.textContent = '🔵 Connected to Base';
+  }
+}
+
+function pickPrize() {
+  const roll = Math.random() * 100;
+  let cumulative = 0;
+  for (const prize of PRIZES) {
+    cumulative += prize.chance;
+    if (roll < cumulative) return prize;
+  }
+  return PRIZES[PRIZES.length - 1];
+}
+
+function setupCanvas() {
+  canvas = document.getElementById('scratchCanvas');
+  ctx = canvas.getContext('2d');
+  isScratching = false;
+  revealed = false;
+  const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  grad.addColorStop(0, '#c9a227');
+  grad.addColorStop(0.5, '#f5c518');
+  grad.addColorStop(1, '#b8860b');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SCRATCH HERE', canvas.width / 2, canvas.height / 2);
+  ctx.globalCompositeOperation = 'destination-out';
+  attachEvents();
+}
+
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const source = e.touches ? e.touches[0] : e;
+  return { x: (source.clientX - rect.left) * scaleX, y: (source.clientY - rect.top) * scaleY };
+}
+
+function scratch(x, y) {
+  ctx.beginPath();
+  ctx.arc(x, y, 22, 0, Math.PI * 2);
+  ctx.fill();
+  checkProgress();
+}
+
+function checkProgress() {
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  let transparent = 0;
+  for (let i = 3; i < data.length; i += 4) { if (data[i] < 128) transparent++; }
+  const pct = Math.min((transparent / (canvas.width * canvas.height)) * 100, 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = pct < 60 ? Math.round(pct) + '% scratched...' : 'Almost there!';
+  if (pct >= 60 && !revealed) { revealed = true; revealResult(); }
+}
+
+function revealResult() {
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const result = document.getElementById('result');
+  result.style.display = 'block';
+  result.className = 'result ' + (currentPrize.win ? 'win' : 'lose');
+  document.getElementById('resultIcon').textContent = currentPrize.emoji;
+  document.getElementById('resultTitle').textContent = currentPrize.win ? '🎉 You Won!' : '😔 No Prize';
+  document.getElementById('resultDesc').textContent = currentPrize.win ? 'You got: ' + currentPrize.text : 'Better luck next time!';
+  stats.plays++;
+  if (currentPrize.win) { stats.wins++; stats.streak++; } else { stats.streak = 0; }
+  localStorage.setItem('sw_stats', JSON.stringify(stats));
+  updateStatsUI();
+}
+
+function updateStatsUI() {
+  document.getElementById('statPlays').textContent = stats.plays;
+  document.getElementById('statWins').textContent = stats.wins;
+  document.getElementById('statStreak').textContent = stats.streak;
+}
+
+function attachEvents() {
+  canvas.addEventListener('mousedown', (e) => { isScratching = true; const p = getPos(e); scratch(p.x, p.y); });
+  canvas.addEventListener('mousemove', (e) => { if (isScratching) { const p = getPos(e); scratch(p.x, p.y); } });
+  canvas.addEventListener('mouseup', () => { isScratching = false; });
+  canvas.addEventListener('touchstart', (e) => { e.preventDefault(); isScratching = true; const p = getPos(e); scratch(p.x, p.y); }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => { e.preventDefault(); if (isScratching) { const p = getPos(e); scratch(p.x, p.y); } }, { passive: false });
+  canvas.addEventListener('touchend', () => { isScratching = false; });
+}
+
+window.newGame = function() {
+  currentPrize = pickPrize();
+  document.getElementById('prizeEmoji').textContent = currentPrize.emoji;
+  document.getElementById('prizeText').textContent = currentPrize.text;
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('progressLabel').textContent = 'Scratch to reveal...';
+  setupCanvas();
+};
+
+window.connectWallet = connectWallet;
+
+updateStatsUI();
+window.newGame();

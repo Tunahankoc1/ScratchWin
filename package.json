@@ -1,0 +1,10 @@
+{
+  "name": "scratch-win",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "npx serve . -p 3000"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}
