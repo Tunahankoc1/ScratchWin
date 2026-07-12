@@ -2,10 +2,10 @@ import { sdk } from 'https://esm.sh/@farcaster/frame-sdk';
 sdk.actions.ready();
 
 const PRIZES = [
-  { emoji: '💎', text: 'DIAMOND JACKPOT', win: true, chance: 3 },
-  { emoji: '🥇', text: 'GOLD WINNER', win: true, chance: 8 },
-  { emoji: '🎁', text: 'MYSTERY PRIZE', win: true, chance: 14 },
-  { emoji: '⭐', text: 'LUCKY STAR', win: true, chance: 20 },
+  { emoji: "💎", text: "100 USDC JACKPOT", win: true, chance: 3 },
+  { emoji: "🥇", text: "10 USDC", win: true, chance: 8 },
+  { emoji: "🎁", text: "5 USDC", win: true, chance: 14 },
+  { emoji: "⭐", text: "1 USDC", win: true, chance: 20 },
   { emoji: '💸', text: 'BETTER LUCK NEXT TIME', win: false, chance: 30 },
   { emoji: '😢', text: 'NO LUCK TRY AGAIN', win: false, chance: 25 },
 ];
