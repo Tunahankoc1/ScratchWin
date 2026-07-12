@@ -2,10 +2,10 @@ import { sdk } from 'https://esm.sh/@farcaster/frame-sdk';
 sdk.actions.ready();
 
 const PRIZES = [
-  { emoji: '💎', text: 'DIAMOND JACKPOT!', win: true, chance: 3 },
-  { emoji: '🥇', text: 'GOLD WINNER!', win: true, chance: 8 },
-  { emoji: '🎁', text: 'MYSTERY PRIZE!', win: true, chance: 14 },
-  { emoji: '⭐', text: 'LUCKY STAR!', win: true, chance: 20 },
+  { emoji: '💎', text: 'DIAMOND JACKPOT', win: true, chance: 3 },
+  { emoji: '🥇', text: 'GOLD WINNER', win: true, chance: 8 },
+  { emoji: '🎁', text: 'MYSTERY PRIZE', win: true, chance: 14 },
+  { emoji: '⭐', text: 'LUCKY STAR', win: true, chance: 20 },
   { emoji: '💸', text: 'BETTER LUCK NEXT TIME', win: false, chance: 30 },
   { emoji: '😢', text: 'NO LUCK TRY AGAIN', win: false, chance: 25 },
 ];
@@ -14,48 +14,32 @@ let canvas, ctx, isScratching, revealed;
 let stats = JSON.parse(localStorage.getItem('sw_stats') || '{"plays":0,"wins":0,"streak":0}');
 let currentPrize = null;
 let walletAddress = null;
+let provider = null;
+
+function getProvider() {
+  return window.ethereum?.providers?.find(p => p.isCoinbaseWallet)
+    || (window.ethereum?.isCoinbaseWallet ? window.ethereum : null)
+    || window.ethereum;
+}
 
 async function connectWallet() {
+  provider = getProvider();
+  if (!provider) { alert('Please install Coinbase Wallet extension!'); return; }
   try {
-    // Coinbase Wallet'ı tercih et
-    const provider = window.ethereum?.providers?.find(p => p.isCoinbaseWallet)
-      || (window.ethereum?.isCoinbaseWallet ? window.ethereum : null)
-      || window.ethereum;
-
-    if (!provider) {
-      alert('Please install Coinbase Wallet extension!');
-      return;
-    }
-
     const accounts = await provider.request({ method: 'eth_requestAccounts' });
     walletAddress = accounts[0];
-
-    // Base mainnet'e geç (chain id: 8453)
     try {
-      await provider.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x2105' }],
-      });
+      await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x2105' }] });
     } catch (e) {
-      // Base eklenmemişse ekle
       if (e.code === 4902) {
         await provider.request({
           method: 'wallet_addEthereumChain',
-          params: [{
-            chainId: '0x2105',
-            chainName: 'Base',
-            nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-            rpcUrls: ['https://mainnet.base.org'],
-            blockExplorerUrls: ['https://basescan.org'],
-          }],
+          params: [{ chainId: '0x2105', chainName: 'Base', nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://mainnet.base.org'], blockExplorerUrls: ['https://basescan.org'] }]
         });
       }
     }
-
     updateWalletUI();
-  } catch (e) {
-    console.error(e);
-  }
+  } catch (e) { console.error(e); }
 }
 
 function updateWalletUI() {
@@ -72,13 +56,35 @@ function updateWalletUI() {
   }
 }
 
+async function buyTicket() {
+  if (!walletAddress) { alert('Connect your wallet first!'); return; }
+  try {
+    const val = (0.0001 * 1e18).toString(16);
+    await provider.request({
+      method: 'eth_sendTransaction',
+      params: [{ from: walletAddress, to: '0x000000000000000000000000000000000000dEaD', value: '0x' + parseInt(val).toString(16) }]
+    });
+    window.newGame();
+  } catch(e) { console.error(e); }
+}
+
+async function sendWinTx() {
+  if (!walletAddress) return;
+  try {
+    const msg = 'Scratch and Win - ' + currentPrize.text + ' - ' + new Date().toISOString();
+    const hex = '0x' + Array.from(new TextEncoder().encode(msg)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const txHash = await provider.request({
+      method: 'eth_sendTransaction',
+      params: [{ from: walletAddress, to: walletAddress, value: '0x0', data: hex }]
+    });
+    document.getElementById('resultDesc').textContent += ' TX: ' + txHash.slice(0, 10) + '...';
+  } catch(e) { console.error(e); }
+}
+
 function pickPrize() {
   const roll = Math.random() * 100;
   let cumulative = 0;
-  for (const prize of PRIZES) {
-    cumulative += prize.chance;
-    if (roll < cumulative) return prize;
-  }
+  for (const prize of PRIZES) { cumulative += prize.chance; if (roll < cumulative) return prize; }
   return PRIZES[PRIZES.length - 1];
 }
 
@@ -136,7 +142,7 @@ function revealResult() {
   document.getElementById('resultTitle').textContent = currentPrize.win ? '🎉 You Won!' : '😔 No Prize';
   document.getElementById('resultDesc').textContent = currentPrize.win ? 'You got: ' + currentPrize.text : 'Better luck next time!';
   stats.plays++;
-  if (currentPrize.win) { stats.wins++; stats.streak++; } else { stats.streak = 0; }
+  if (currentPrize.win) { stats.wins++; stats.streak++; sendWinTx(); } else { stats.streak = 0; }
   localStorage.setItem('sw_stats', JSON.stringify(stats));
   updateStatsUI();
 }
@@ -167,6 +173,14 @@ window.newGame = function() {
 };
 
 window.connectWallet = connectWallet;
+window.buyTicket = buyTicket;
+
+if (window.ethereum) {
+  provider = getProvider();
+  provider?.request({ method: 'eth_accounts' }).then(accounts => {
+    if (accounts.length > 0) { walletAddress = accounts[0]; updateWalletUI(); }
+  });
+}
 
 updateStatsUI();
 window.newGame();
