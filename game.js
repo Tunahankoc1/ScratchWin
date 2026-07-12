@@ -163,6 +163,7 @@ function attachEvents() {
 }
 
 window.newGame = function() {
+  if (canvas) { ctx.globalCompositeOperation = "source-over"; ctx.clearRect(0, 0, canvas.width, canvas.height); }
   currentPrize = pickPrize();
   document.getElementById('prizeEmoji').textContent = currentPrize.emoji;
   document.getElementById('prizeText').textContent = currentPrize.text;
