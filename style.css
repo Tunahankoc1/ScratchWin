@@ -25,7 +25,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .app {
@@ -81,7 +81,7 @@ h1 {
   width: 300px;
   height: 300px;
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow-y: auto;
   box-shadow: 0 0 40px rgba(245, 197, 24, 0.3), 0 8px 32px rgba(0,0,0,0.5);
   border: 2px solid rgba(245, 197, 24, 0.4);
   cursor: crosshair;
@@ -125,7 +125,7 @@ h1 {
   height: 6px;
   background: rgba(255,255,255,0.1);
   border-radius: 99px;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .progress-fill {
@@ -228,4 +228,14 @@ h1 {
   border: 1px solid rgba(0,230,118,0.3);
   border-radius: 99px;
   padding: 3px 10px;
+}
+
+body {
+  overflow-y: auto !important;
+  min-height: 100vh;
+  height: auto;
+}
+
+.app {
+  padding-bottom: 40px;
 }
