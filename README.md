@@ -18,7 +18,7 @@ A scratch card mini app on Base. Scratch to reveal your prize — wins are recor
 |-------|--------|--------|
 | 💎 Jackpot | 100 USDC | 3% |
 | 🥇 Gold | 10 USDC | 8% |
-| 🎁 Mystery | 5 USDC | 5% |
+| 🎁 Mystery | 5 USDC | 14% |
 | ⭐ Lucky | 1 USDC | 20% |
 
 ## Stack
@@ -28,11 +28,13 @@ A scratch card mini app on Base. Scratch to reveal your prize — wins are recor
 - Farcaster Frame SDK
 - Vercel
 
-## Run Locally
+## Setup
 
 ```bash
+git clone https://github.com/Tunahankoc1/ScratchWin
+cd ScratchWin
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open [https://scratch-win-iota.vercel.app](https://scratch-win-iota.vercel.app)
