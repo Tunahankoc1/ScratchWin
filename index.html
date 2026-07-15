@@ -1,10 +1,11 @@
+cat > ~/scratch-win/index.html << 'EOF'
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="fc:frame" content="vNext">
-  <meta name="base:app_id" content="6a567dc5862b3c002cbb65ac">
+  <meta name="base:app_id" content="6a578b6c338fe7f5494ab343">
   <title>Scratch & Win</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -58,3 +59,7 @@
   <script type="module" src="game.js"></script>
 </body>
 </html>
+EOF
+git add .
+git commit -m "update base app id"
+git push
