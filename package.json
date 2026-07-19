@@ -6,5 +6,9 @@
   },
   "devDependencies": {
     "serve": "^14.2.0"
+  },
+  "dependencies": {
+    "ethers": "^6.17.0",
+    "viem": "^2.55.4"
   }
 }
