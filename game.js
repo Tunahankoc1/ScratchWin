@@ -6,7 +6,7 @@ let revealed = false;
 let currentPrize = null;
 
 function init() {
-  console.log('Init başladı');
+  console.log('🎮 ScratchWin init başladı');
   canvas = document.getElementById('scratchCanvas');
   if (!canvas) {
     console.error('Canvas bulunamadı!');
@@ -17,22 +17,27 @@ function init() {
   drawScratchLayer();
   
   canvas.addEventListener('mousedown', () => { isScratching = true; });
-  canvas.addEventListener('mouseup', () => { isScratching = false; });
+  canvas.addEventListener('mouseup', stopScratching);
   canvas.addEventListener('mousemove', scratch);
-  canvas.addEventListener('touchstart', () => { isScratching = true; });
-  canvas.addEventListener('touchend', () => { isScratching = false; });
+  canvas.addEventListener('mouseleave', stopScratching);
+  
+  canvas.addEventListener('touchstart', (e) => { e.preventDefault(); isScratching = true; });
+  canvas.addEventListener('touchend', stopScratching);
   canvas.addEventListener('touchmove', scratch);
   
   const saved = localStorage.getItem('scratchWinStats');
   if (saved) Object.assign(gameState, JSON.parse(saved));
   updateStats();
   
-  console.log('Init tamamlandı');
+  console.log('✅ Init tamamlandı');
 }
 
 function drawScratchLayer() {
+  ctx.clearRect(0, 0, 300, 300);
+  
   ctx.fillStyle = '#FFD700';
   ctx.fillRect(0, 0, 300, 300);
+  
   ctx.fillStyle = '#333';
   ctx.font = 'bold 24px Arial';
   ctx.textAlign = 'center';
@@ -57,15 +62,63 @@ function scratch(e) {
   
   ctx.globalCompositeOperation = 'destination-out';
   ctx.beginPath();
-  ctx.arc(x, y, 30, 0, Math.PI * 2);
+  ctx.arc(x, y, 35, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalCompositeOperation = 'source-over';
+  
+  checkRevealed();
+}
+
+function stopScratching() {
+  isScratching = false;
+}
+
+function checkRevealed() {
+  const imageData = ctx.getImageData(0, 0, 300, 300);
+  const data = imageData.data;
+  
+  let transparent = 0;
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i] < 128) transparent++;
+  }
+  
+  const percent = (transparent / (data.length / 4)) * 100;
+  console.log('Kazıldı:', percent.toFixed(1) + '%');
+  
+  if (percent > 25 && !revealed) {
+    revealPrize();
+  }
+}
+
+function revealPrize() {
+  revealed = true;
+  isScratching = false;
+  
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.clearRect(0, 0, 300, 300);
+  
+  ctx.fillStyle = '#FF6B6B';
+  ctx.fillRect(0, 0, 300, 300);
+  
+  ctx.font = 'bold 80px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'white';
+  ctx.fillText(currentPrize.emoji, 150, 150);
+  
+  console.log('🎉 Kazanıldı:', currentPrize);
+  
+  if (currentPrize.amount > 0) {
+    showWinResult(currentPrize.amount);
+  } else {
+    showLossResult();
+  }
 }
 
 async function connectWallet() {
   try {
     if (!window.ethereum) {
-      alert('Rabby Wallet yükleyin: https://rabby.io');
+      alert('❌ Rabby Wallet yükleyin: https://rabby.io');
       return;
     }
     
@@ -74,9 +127,9 @@ async function connectWallet() {
     });
     userWallet = accounts[0];
     updateWalletDisplay(userWallet);
-    console.log('Wallet bağlandı:', userWallet);
+    console.log('✅ Wallet bağlandı:', userWallet);
   } catch (e) {
-    alert('Hata: ' + e.message);
+    alert('❌ Hata: ' + e.message);
   }
 }
 
@@ -90,7 +143,7 @@ function updateWalletDisplay(addr) {
 
 function newGame() {
   if (!userWallet) {
-    alert('Önce Wallet bağlayın!');
+    alert('❌ Önce Wallet bağlayın!');
     return;
   }
   
@@ -109,7 +162,34 @@ function newGame() {
   
   gameState.played++;
   updateStats();
-  console.log('Yeni oyun:', currentPrize);
+  console.log('🎲 Prize:', currentPrize);
+}
+
+function showWinResult(amount) {
+  const result = document.getElementById('result');
+  result.innerHTML = `
+    <div class="result-icon">🎉</div>
+    <div class="result-title">Kazandınız! +${amount} USDC</div>
+    <div class="result-desc">TX gönderiliyor...</div>
+  `;
+  result.style.display = 'block';
+  
+  gameState.won++;
+  gameState.streak++;
+  updateStats();
+}
+
+function showLossResult() {
+  const result = document.getElementById('result');
+  result.innerHTML = `
+    <div class="result-icon">😢</div>
+    <div class="result-title">Kazanamadınız!</div>
+    <div class="result-desc">Tekrar deneyin</div>
+  `;
+  result.style.display = 'block';
+  
+  gameState.streak = 0;
+  updateStats();
 }
 
 function updateStats() {
