@@ -27,6 +27,7 @@ async function connectWallet() {
   try {
     console.log('🔌 Wallet bağlantı başladı...');
 
+    // Rabby Wallet kontrolü
     if (!window.ethereum) {
       alert('❌ Lütfen Rabby Wallet yükleyin!\n\nhttps://rabby.io');
       window.open('https://rabby.io', '_blank');
@@ -35,6 +36,7 @@ async function connectWallet() {
 
     console.log('✅ Rabby Wallet bulundu');
 
+    // Base Mainnet'e switch yap
     try {
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
@@ -42,6 +44,7 @@ async function connectWallet() {
       });
       console.log('✅ Base Mainnet\'e switched');
     } catch (switchError) {
+      // Eğer network yoksa ekle
       if (switchError.code === 4902) {
         console.log('🔧 Base ağı ekleniyor...');
         await window.ethereum.request({
@@ -64,6 +67,7 @@ async function connectWallet() {
       }
     }
 
+    // Hesap bağlantısı iste
     const accounts = await window.ethereum.request({
       method: 'eth_requestAccounts',
     });
@@ -111,11 +115,11 @@ function enableGameButtons() {
 function calculatePrize() {
   const random = Math.random() * 100;
 
-  if (random < 3) return 100;
-  if (random < 11) return 10;
-  if (random < 25) return 5;
-  if (random < 45) return 1;
-  return 0;
+  if (random < 3) return 100; // 💎 Jackpot (3%)
+  if (random < 11) return 10; // 🥇 Gold (8%)
+  if (random < 25) return 5; // 🎁 Mystery (14%)
+  if (random < 45) return 1; // ⭐ Lucky (20%)
+  return 0; // ❌ No Prize (55%)
 }
 
 function getPrizeEmoji(amount) {
@@ -135,7 +139,10 @@ async function newGame() {
     return;
   }
 
+  // Hide previous result
   document.getElementById('result').style.display = 'none';
+
+  // Play game
   await playGame();
 }
 
@@ -147,9 +154,11 @@ async function playGame() {
     gameState.played++;
 
     if (prize > 0) {
+      // Win - Send USDC
       console.log(`🎉 Kazandı! Prize: ${prize} USDC`);
       await sendUSDCPayout(userWallet, prize);
     } else {
+      // Loss
       console.log('❌ Kazanamadı');
       gameState.streak = 0;
       showLossResult();
@@ -174,10 +183,12 @@ async function sendUSDCPayout(recipientWallet, amountUsdc) {
 
     const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
 
+    // USDC miktarını hesapla (6 decimals)
     const amountInWei = ethers.parseUnits(amountUsdc.toString(), 6);
 
     console.log('📝 Transfer transaction oluşturuluyor...');
 
+    // Transfer
     const tx = await usdc.transfer(recipientWallet, amountInWei);
     const txHash = tx.hash;
 
@@ -187,9 +198,11 @@ async function sendUSDCPayout(recipientWallet, amountUsdc) {
 
     console.log('✅ Transaction başarılı:', receipt.transactionHash);
 
+    // Update game state
     gameState.won++;
     gameState.streak++;
 
+    // Show win result with link
     showWinResult(amountUsdc, receipt.transactionHash);
 
   } catch (error) {
@@ -218,9 +231,13 @@ function showWinResult(prize, txHash) {
   const emoji = getPrizeEmoji(prize);
   const explorerUrl = BASESCAN_URL + txHash;
 
+  // Icon
   icon.textContent = emoji;
+
+  // Title
   title.textContent = `🎉 Kazandınız! +${prize} USDC`;
 
+  // Description with clickable link
   desc.innerHTML = `
     <div style="margin-top: 15px; text-align: center;">
       <p style="font-size: 12px; color: #666; margin: 8px 0; font-weight: 500;">
@@ -302,6 +319,7 @@ function updateStats() {
     document.getElementById('statWins').textContent = gameState.won;
     document.getElementById('statStreak').textContent = gameState.streak;
 
+    // Local storage'a kaydet
     localStorage.setItem('scratchWinStats', JSON.stringify(gameState));
     console.log('📊 Stats güncellendi:', gameState);
 
@@ -315,14 +333,17 @@ function updateStats() {
 function initializeGame() {
   console.log('🎮 ScratchWin başlatılıyor...');
 
+  // Load stats from local storage
   const savedStats = localStorage.getItem('scratchWinStats');
   if (savedStats) {
     Object.assign(gameState, JSON.parse(savedStats));
     console.log('📊 Kaydedilmiş stats yüklendi:', gameState);
   }
 
+  // Update display
   updateStats();
 
+  // Check if wallet is already connected
   if (window.ethereum?.selectedAddress) {
     userWallet = window.ethereum.selectedAddress;
     updateWalletDisplay(userWallet);
@@ -330,6 +351,7 @@ function initializeGame() {
     console.log('✅ Wallet zaten bağlı:', userWallet);
   }
 
+  // Listen for account changes
   if (window.ethereum) {
     window.ethereum.on('accountsChanged', (accounts) => {
       if (accounts.length === 0) {
@@ -355,11 +377,15 @@ function initializeGame() {
   console.log('✅ ScratchWin hazır!');
 }
 
+// ============ START ============
+
+// Initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializeGame);
 } else {
   initializeGame();
 }
 
+// Export functions for HTML onclick handlers
 window.connectWallet = connectWallet;
 window.newGame = newGame;
