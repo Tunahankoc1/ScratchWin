@@ -6,10 +6,10 @@ let revealed = false;
 let currentPrize = null;
 
 function init() {
-  console.log('🎮 ScratchWin init başladı');
+  console.log('🎮 ScratchWin başlatılıyor...');
   canvas = document.getElementById('scratchCanvas');
   if (!canvas) {
-    console.error('Canvas bulunamadı!');
+    console.error('❌ Canvas bulunamadı!');
     return;
   }
   
@@ -17,27 +17,33 @@ function init() {
   drawScratchLayer();
   
   canvas.addEventListener('mousedown', () => { isScratching = true; });
-  canvas.addEventListener('mouseup', stopScratching);
+  canvas.addEventListener('mouseup', () => { isScratching = false; });
   canvas.addEventListener('mousemove', scratch);
-  canvas.addEventListener('mouseleave', stopScratching);
+  canvas.addEventListener('mouseleave', () => { isScratching = false; });
   
-  canvas.addEventListener('touchstart', (e) => { e.preventDefault(); isScratching = true; });
-  canvas.addEventListener('touchend', stopScratching);
+  canvas.addEventListener('touchstart', (e) => { 
+    e.preventDefault(); 
+    isScratching = true; 
+  });
+  canvas.addEventListener('touchend', () => { isScratching = false; });
   canvas.addEventListener('touchmove', scratch);
   
   const saved = localStorage.getItem('scratchWinStats');
   if (saved) Object.assign(gameState, JSON.parse(saved));
   updateStats();
   
-  console.log('✅ Init tamamlandı');
+  if (window.ethereum?.selectedAddress) {
+    userWallet = window.ethereum.selectedAddress;
+    updateWalletDisplay(userWallet);
+  }
+  
+  console.log('✅ ScratchWin hazır!');
 }
 
 function drawScratchLayer() {
   ctx.clearRect(0, 0, 300, 300);
-  
   ctx.fillStyle = '#FFD700';
   ctx.fillRect(0, 0, 300, 300);
-  
   ctx.fillStyle = '#333';
   ctx.font = 'bold 24px Arial';
   ctx.textAlign = 'center';
@@ -69,10 +75,6 @@ function scratch(e) {
   checkRevealed();
 }
 
-function stopScratching() {
-  isScratching = false;
-}
-
 function checkRevealed() {
   const imageData = ctx.getImageData(0, 0, 300, 300);
   const data = imageData.data;
@@ -83,9 +85,8 @@ function checkRevealed() {
   }
   
   const percent = (transparent / (data.length / 4)) * 100;
-  console.log('Kazıldı:', percent.toFixed(1) + '%');
   
-  if (percent > 25 && !revealed) {
+  if (percent > 20 && !revealed) {
     revealPrize();
   }
 }
@@ -106,13 +107,17 @@ function revealPrize() {
   ctx.fillStyle = 'white';
   ctx.fillText(currentPrize.emoji, 150, 150);
   
-  console.log('🎉 Kazanıldı:', currentPrize);
+  console.log('🎉 Prize revealed:', currentPrize);
   
   if (currentPrize.amount > 0) {
+    gameState.won++;
+    gameState.streak++;
     showWinResult(currentPrize.amount);
   } else {
+    gameState.streak = 0;
     showLossResult();
   }
+  updateStats();
 }
 
 async function connectWallet() {
@@ -120,6 +125,26 @@ async function connectWallet() {
     if (!window.ethereum) {
       alert('❌ Rabby Wallet yükleyin: https://rabby.io');
       return;
+    }
+    
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x2105' }],
+      });
+    } catch (e) {
+      if (e.code === 4902) {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: '0x2105',
+            chainName: 'Base Mainnet',
+            rpcUrls: ['https://mainnet.base.org'],
+            nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+            blockExplorerUrls: ['https://basescan.org'],
+          }],
+        });
+      }
     }
     
     const accounts = await window.ethereum.request({
@@ -138,6 +163,11 @@ function updateWalletDisplay(addr) {
   if (badge) {
     badge.textContent = `✅ ${addr.slice(0, 6)}...${addr.slice(-4)}`;
     badge.style.display = 'inline-block';
+  }
+  const btn = document.getElementById('btnWallet');
+  if (btn) {
+    btn.textContent = '✅ Bağlı';
+    btn.disabled = true;
   }
 }
 
@@ -162,7 +192,6 @@ function newGame() {
   
   gameState.played++;
   updateStats();
-  console.log('🎲 Prize:', currentPrize);
 }
 
 function showWinResult(amount) {
@@ -170,13 +199,11 @@ function showWinResult(amount) {
   result.innerHTML = `
     <div class="result-icon">🎉</div>
     <div class="result-title">Kazandınız! +${amount} USDC</div>
-    <div class="result-desc">TX gönderiliyor...</div>
+    <div class="result-desc">
+      <a href="https://basescan.org" target="_blank">📊 Basescan'da Görüntüle →</a>
+    </div>
   `;
   result.style.display = 'block';
-  
-  gameState.won++;
-  gameState.streak++;
-  updateStats();
 }
 
 function showLossResult() {
@@ -184,12 +211,9 @@ function showLossResult() {
   result.innerHTML = `
     <div class="result-icon">😢</div>
     <div class="result-title">Kazanamadınız!</div>
-    <div class="result-desc">Tekrar deneyin</div>
+    <div class="result-desc">Tekrar deneyin 🎰</div>
   `;
   result.style.display = 'block';
-  
-  gameState.streak = 0;
-  updateStats();
 }
 
 function updateStats() {
