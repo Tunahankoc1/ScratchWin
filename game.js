@@ -5,6 +5,18 @@ let isScratching = false;
 let revealed = false;
 let currentPrize = null;
 
+const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const USDC_ABI = ['function transfer(address to, uint256 amount) returns (bool)'];
+
+async function sendUSDC(amount, recipient) {
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
+  const tx = await usdc.transfer(recipient, ethers.parseUnits(amount.toString(), 6));
+  const receipt = await tx.wait();
+  return receipt.transactionHash;
+}
+
 function init() {
   canvas = document.getElementById('scratchCanvas');
   ctx = canvas.getContext('2d');
@@ -108,6 +120,49 @@ function revealPrize() {
   updateStats();
 }
 
+async function showWinResult(amount) {
+  const result = document.getElementById('result');
+  result.innerHTML = `
+    <div class="result-icon">🎉</div>
+    <div class="result-title">Won! +${amount} USDC</div>
+    <div class="result-desc">Processing...</div>
+  `;
+  result.style.display = 'block';
+  
+  try {
+    const txHash = await sendUSDC(amount, userWallet);
+    result.innerHTML = `
+      <div class="result-icon">🎉</div>
+      <div class="result-title">Won! +${amount} USDC</div>
+      <div class="result-desc">
+        <p style="font-size: 12px; color: #666; margin: 8px 0;">TX Hash:</p>
+        <a href="https://basescan.org/tx/${txHash}" target="_blank" style="color: #0052ff; text-decoration: none; word-break: break-all; font-family: monospace; font-size: 11px; display: inline-block; background: #f5f5f5; padding: 8px; border-radius: 5px; max-width: 280px;">
+          ${txHash}
+        </a>
+        <br>
+        <a href="https://basescan.org/tx/${txHash}" target="_blank" style="color: #0052ff; text-decoration: underline; margin-top: 10px; display: inline-block;">
+          📊 View on Basescan →
+        </a>
+      </div>
+    `;
+  } catch (e) {
+    result.innerHTML = `
+      <div class="result-icon">⚠️</div>
+      <div class="result-title">Transfer Failed</div>
+      <div class="result-desc">${e.message}</div>
+    `;
+  }
+}
+
+function showLossResult() {
+  const result = document.getElementById('result');
+  result.innerHTML = `
+    <div class="result-icon">😢</div>
+    <div class="result-title">Try Again!</div>
+  `;
+  result.style.display = 'block';
+}
+
 async function connectWallet() {
   try {
     if (!window.ethereum) {
@@ -177,25 +232,6 @@ function newGame() {
   
   gameState.played++;
   updateStats();
-}
-
-function showWinResult(amount) {
-  const result = document.getElementById('result');
-  result.innerHTML = `
-    <div class="result-icon">🎉</div>
-    <div class="result-title">Won! +${amount} USDC</div>
-    <div class="result-desc"><a href="https://basescan.org" target="_blank">View on Basescan →</a></div>
-  `;
-  result.style.display = 'block';
-}
-
-function showLossResult() {
-  const result = document.getElementById('result');
-  result.innerHTML = `
-    <div class="result-icon">😢</div>
-    <div class="result-title">Try Again!</div>
-  `;
-  result.style.display = 'block';
 }
 
 function updateStats() {
