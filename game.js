@@ -1,187 +1,365 @@
-import { sdk } from 'https://esm.sh/@farcaster/frame-sdk';
-sdk.actions.ready();
+import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@6.8.0/+esm';
 
-const PRIZES = [
-  { emoji: "💎", text: "100 USDC JACKPOT", win: true, chance: 3 },
-  { emoji: "🥇", text: "10 USDC", win: true, chance: 8 },
-  { emoji: "🎁", text: "5 USDC", win: true, chance: 14 },
-  { emoji: "⭐", text: "1 USDC", win: true, chance: 20 },
-  { emoji: '💸', text: 'BETTER LUCK NEXT TIME', win: false, chance: 30 },
-  { emoji: '😢', text: 'NO LUCK TRY AGAIN', win: false, chance: 25 },
+// ============ CONSTANTS ============
+
+const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const BASE_CHAIN_ID = '0x2105'; // Base Mainnet
+const BASESCAN_URL = 'https://basescan.org/tx/';
+
+const USDC_ABI = [
+  'function transfer(address to, uint256 amount) returns (bool)',
+  'function balanceOf(address) view returns (uint256)',
+  'function approve(address spender, uint256 amount) returns (bool)',
 ];
 
-let canvas, ctx, isScratching, revealed;
-let stats = JSON.parse(localStorage.getItem('sw_stats') || '{"plays":0,"wins":0,"streak":0}');
-let currentPrize = null;
-let walletAddress = null;
-let provider = null;
+// ============ STATE ============
 
-function getProvider() {
-  return window.ethereum?.providers?.find(p => p.isCoinbaseWallet)
-    || (window.ethereum?.isCoinbaseWallet ? window.ethereum : null)
-    || window.ethereum;
-}
+let userWallet = null;
+let gameState = {
+  played: 0,
+  won: 0,
+  streak: 0,
+};
+
+// ============ WALLET CONNECTION ============
 
 async function connectWallet() {
-  provider = getProvider();
-  if (!provider) { alert('Please install Coinbase Wallet extension!'); return; }
   try {
-    const accounts = await provider.request({ method: 'eth_requestAccounts' });
-    walletAddress = accounts[0];
+    console.log('🔌 Wallet bağlantı başladı...');
+
+    if (!window.ethereum) {
+      alert('❌ Lütfen Rabby Wallet yükleyin!\n\nhttps://rabby.io');
+      window.open('https://rabby.io', '_blank');
+      return;
+    }
+
+    console.log('✅ Rabby Wallet bulundu');
+
     try {
-      await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x2105' }] });
-    } catch (e) {
-      if (e.code === 4902) {
-        await provider.request({
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: BASE_CHAIN_ID }],
+      });
+      console.log('✅ Base Mainnet\'e switched');
+    } catch (switchError) {
+      if (switchError.code === 4902) {
+        console.log('🔧 Base ağı ekleniyor...');
+        await window.ethereum.request({
           method: 'wallet_addEthereumChain',
-          params: [{ chainId: '0x2105', chainName: 'Base', nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://mainnet.base.org'], blockExplorerUrls: ['https://basescan.org'] }]
+          params: [
+            {
+              chainId: BASE_CHAIN_ID,
+              chainName: 'Base Mainnet',
+              rpcUrls: ['https://mainnet.base.org'],
+              nativeCurrency: {
+                name: 'Ether',
+                symbol: 'ETH',
+                decimals: 18,
+              },
+              blockExplorerUrls: ['https://basescan.org'],
+            },
+          ],
         });
+        console.log('✅ Base ağı eklendi');
       }
     }
-    updateWalletUI();
-  } catch (e) { console.error(e); }
-}
 
-function updateWalletUI() {
-  const btn = document.getElementById('btnWallet');
-  const badge = document.getElementById('walletBadge');
-  if (walletAddress) {
-    const short = walletAddress.slice(0, 6) + '...' + walletAddress.slice(-4);
-    btn.textContent = '✅ ' + short;
-    btn.style.background = 'rgba(0,230,118,0.15)';
-    btn.style.color = '#00e676';
-    btn.style.border = '1px solid #00e676';
-    badge.style.display = 'block';
-    badge.textContent = '🔵 Connected to Base';
+    const accounts = await window.ethereum.request({
+      method: 'eth_requestAccounts',
+    });
+
+    userWallet = accounts[0];
+    console.log('✅ Hesap bağlandı:', userWallet);
+
+    updateWalletDisplay(userWallet);
+    enableGameButtons();
+
+  } catch (error) {
+    console.error('❌ Wallet hatası:', error);
+    alert('❌ Cüzdan bağlantısı başarısız oldu\n\n' + error.message);
   }
 }
 
-async function buyTicket() {
-  if (!walletAddress) { alert('Connect your wallet first!'); return; }
-  try {
-    const val = (0.0001 * 1e18).toString(16);
-    await provider.request({
-      method: 'eth_sendTransaction',
-      params: [{ from: walletAddress, to: '0x000000000000000000000000000000000000dEaD', value: '0x' + parseInt(val).toString(16) }]
-    });
-    window.newGame();
-  } catch(e) { console.error(e); }
+// ============ WALLET DISPLAY ============
+
+function updateWalletDisplay(address) {
+  const badge = document.getElementById('walletBadge');
+  if (badge) {
+    const shortAddr = `${address.slice(0, 6)}...${address.slice(-4)}`;
+    badge.textContent = `✅ Bağlı: ${shortAddr}`;
+    badge.style.display = 'inline-block';
+  }
+
+  const btn = document.getElementById('btnWallet');
+  if (btn) {
+    btn.textContent = '✅ Bağlı';
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
+  }
 }
 
-async function sendWinTx() {
-  if (!walletAddress) return;
-  try {
-    const msg = 'Scratch and Win - ' + currentPrize.text + ' - ' + new Date().toISOString();
-    const hex = '0x' + Array.from(new TextEncoder().encode(msg)).map(b => b.toString(16).padStart(2, '0')).join('');
-    const txHash = await provider.request({
-      method: 'eth_sendTransaction',
-      params: [{ from: walletAddress, to: walletAddress, value: '0x0', data: hex }]
-    });
-    document.getElementById('resultDesc').textContent += ' TX: ' + txHash.slice(0, 10) + '...';
-  } catch(e) { console.error(e); }
+function enableGameButtons() {
+  const playBtn = document.getElementById('btnPlay');
+  if (playBtn) {
+    playBtn.disabled = false;
+    playBtn.style.opacity = '1';
+  }
 }
 
-function pickPrize() {
-  const roll = Math.random() * 100;
-  let cumulative = 0;
-  for (const prize of PRIZES) { cumulative += prize.chance; if (roll < cumulative) return prize; }
-  return PRIZES[PRIZES.length - 1];
+// ============ PRIZE CALCULATION ============
+
+function calculatePrize() {
+  const random = Math.random() * 100;
+
+  if (random < 3) return 100;
+  if (random < 11) return 10;
+  if (random < 25) return 5;
+  if (random < 45) return 1;
+  return 0;
 }
 
-function setupCanvas() {
-  canvas = document.getElementById('scratchCanvas');
-  ctx = canvas.getContext('2d');
-  isScratching = false;
-  revealed = false;
-  const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-  grad.addColorStop(0, '#c9a227');
-  grad.addColorStop(0.5, '#f5c518');
-  grad.addColorStop(1, '#b8860b');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.font = 'bold 18px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('SCRATCH HERE', canvas.width / 2, canvas.height / 2);
-  ctx.globalCompositeOperation = 'destination-out';
-  attachEvents();
+function getPrizeEmoji(amount) {
+  if (amount >= 100) return '💎';
+  if (amount >= 10) return '🥇';
+  if (amount >= 5) return '🎁';
+  if (amount >= 1) return '⭐';
+  return '❌';
 }
 
-function getPos(e) {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const source = e.touches ? e.touches[0] : e;
-  return { x: (source.clientX - rect.left) * scaleX, y: (source.clientY - rect.top) * scaleY };
-}
+// ============ GAME LOGIC ============
 
-function scratch(x, y) {
-  ctx.beginPath();
-  ctx.arc(x, y, 22, 0, Math.PI * 2);
-  ctx.fill();
-  checkProgress();
-}
+async function newGame() {
+  if (!userWallet) {
+    alert('❌ Lütfen önce Rabby Wallet ile bağlanın!');
+    document.getElementById('btnWallet').click();
+    return;
+  }
 
-function checkProgress() {
-  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-  let transparent = 0;
-  for (let i = 3; i < data.length; i += 4) { if (data[i] < 128) transparent++; }
-  const pct = Math.min((transparent / (canvas.width * canvas.height)) * 100, 100);
-  document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('progressLabel').textContent = pct < 60 ? Math.round(pct) + '% scratched...' : 'Almost there!';
-  if (pct >= 60 && !revealed) { revealed = true; revealResult(); }
-}
-
-function revealResult() {
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const result = document.getElementById('result');
-  result.style.display = 'block';
-  result.className = 'result ' + (currentPrize.win ? 'win' : 'lose');
-  document.getElementById('resultIcon').textContent = currentPrize.emoji;
-  document.getElementById('resultTitle').textContent = currentPrize.win ? '🎉 You Won!' : '😔 No Prize';
-  document.getElementById('resultDesc').textContent = currentPrize.win ? 'You got: ' + currentPrize.text : 'Better luck next time!';
-  stats.plays++;
-  if (currentPrize.win) { stats.wins++; stats.streak++; sendWinTx(); } else { stats.streak = 0; }
-  localStorage.setItem('sw_stats', JSON.stringify(stats));
-  updateStatsUI();
-}
-
-function updateStatsUI() {
-  document.getElementById('statPlays').textContent = stats.plays;
-  document.getElementById('statWins').textContent = stats.wins;
-  document.getElementById('statStreak').textContent = stats.streak;
-}
-
-function attachEvents() {
-  canvas.addEventListener('mousedown', (e) => { isScratching = true; const p = getPos(e); scratch(p.x, p.y); });
-  canvas.addEventListener('mousemove', (e) => { if (isScratching) { const p = getPos(e); scratch(p.x, p.y); } });
-  canvas.addEventListener('mouseup', () => { isScratching = false; });
-  canvas.addEventListener('touchstart', (e) => { e.preventDefault(); isScratching = true; const p = getPos(e); scratch(p.x, p.y); }, { passive: false });
-  canvas.addEventListener('touchmove', (e) => { e.preventDefault(); if (isScratching) { const p = getPos(e); scratch(p.x, p.y); } }, { passive: false });
-  canvas.addEventListener('touchend', () => { isScratching = false; });
-}
-
-window.newGame = function() {
-  if (canvas) { ctx.globalCompositeOperation = "source-over"; ctx.clearRect(0, 0, canvas.width, canvas.height); }
-  currentPrize = pickPrize();
-  document.getElementById('prizeEmoji').textContent = currentPrize.emoji;
-  document.getElementById('prizeText').textContent = currentPrize.text;
   document.getElementById('result').style.display = 'none';
-  document.getElementById('progressFill').style.width = '0%';
-  document.getElementById('progressLabel').textContent = 'Scratch to reveal...';
-  setupCanvas();
-};
+  await playGame();
+}
+
+async function playGame() {
+  try {
+    console.log('🎮 Oyun başladı...');
+
+    const prize = calculatePrize();
+    gameState.played++;
+
+    if (prize > 0) {
+      console.log(`🎉 Kazandı! Prize: ${prize} USDC`);
+      await sendUSDCPayout(userWallet, prize);
+    } else {
+      console.log('❌ Kazanamadı');
+      gameState.streak = 0;
+      showLossResult();
+    }
+
+    updateStats();
+
+  } catch (error) {
+    console.error('❌ Oyun hatası:', error);
+    alert('❌ Oyun sırasında hata oluştu:\n\n' + error.message);
+  }
+}
+
+// ============ USDC TRANSFER ============
+
+async function sendUSDCPayout(recipientWallet, amountUsdc) {
+  try {
+    console.log(`💸 USDC gönderiliyor: ${amountUsdc} → ${recipientWallet}`);
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+
+    const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
+
+    const amountInWei = ethers.parseUnits(amountUsdc.toString(), 6);
+
+    console.log('📝 Transfer transaction oluşturuluyor...');
+
+    const tx = await usdc.transfer(recipientWallet, amountInWei);
+    const txHash = tx.hash;
+
+    console.log('⏳ Transaction bekleniyor:', txHash);
+
+    const receipt = await tx.wait();
+
+    console.log('✅ Transaction başarılı:', receipt.transactionHash);
+
+    gameState.won++;
+    gameState.streak++;
+
+    showWinResult(amountUsdc, receipt.transactionHash);
+
+  } catch (error) {
+    console.error('❌ USDC transfer hatası:', error);
+
+    if (error.code === 'INSUFFICIENT_FUNDS') {
+      alert('❌ Yetersiz ETH balance (gas fee için)');
+    } else if (error.code === 'ACTION_REJECTED') {
+      alert('❌ Transaction reddedildi');
+    } else {
+      alert('❌ Transfer başarısız:\n\n' + error.message);
+    }
+
+    throw error;
+  }
+}
+
+// ============ UI - WIN RESULT ============
+
+function showWinResult(prize, txHash) {
+  const result = document.getElementById('result');
+  const icon = document.getElementById('resultIcon');
+  const title = document.getElementById('resultTitle');
+  const desc = document.getElementById('resultDesc');
+
+  const emoji = getPrizeEmoji(prize);
+  const explorerUrl = BASESCAN_URL + txHash;
+
+  icon.textContent = emoji;
+  title.textContent = `🎉 Kazandınız! +${prize} USDC`;
+
+  desc.innerHTML = `
+    <div style="margin-top: 15px; text-align: center;">
+      <p style="font-size: 12px; color: #666; margin: 8px 0; font-weight: 500;">
+        📊 Transaction Hash
+      </p>
+      
+      <a href="${explorerUrl}" 
+         target="_blank" 
+         rel="noopener noreferrer"
+         style="
+           display: inline-block;
+           background: #f5f5f5;
+           color: #0052ff;
+           text-decoration: none;
+           padding: 10px 12px;
+           border-radius: 6px;
+           font-family: 'Courier New', monospace;
+           font-size: 11px;
+           word-break: break-all;
+           max-width: 280px;
+           border: 1px solid #e0e0e0;
+           transition: all 0.2s ease;
+           cursor: pointer;
+         "
+         onmouseover="this.style.background='#e8f0ff'; this.style.borderColor='#0052ff';"
+         onmouseout="this.style.background='#f5f5f5'; this.style.borderColor='#e0e0e0';">
+        ${txHash}
+      </a>
+      
+      <br>
+      
+      <a href="${explorerUrl}" 
+         target="_blank" 
+         rel="noopener noreferrer"
+         style="
+           display: inline-block;
+           color: #0052ff;
+           text-decoration: none;
+           font-size: 14px;
+           margin-top: 12px;
+           padding: 8px 16px;
+           border-radius: 5px;
+           transition: all 0.2s ease;
+         "
+         onmouseover="this.style.textDecoration='underline'; this.style.background='rgba(0,82,255,0.05)';"
+         onmouseout="this.style.textDecoration='none'; this.style.background='transparent';">
+        🔗 Basescan'da Görüntüle →
+      </a>
+    </div>
+  `;
+
+  result.style.display = 'block';
+}
+
+// ============ UI - LOSS RESULT ============
+
+function showLossResult() {
+  const result = document.getElementById('result');
+  const icon = document.getElementById('resultIcon');
+  const title = document.getElementById('resultTitle');
+  const desc = document.getElementById('resultDesc');
+
+  icon.textContent = '😢';
+  title.textContent = 'Kazanamadınız!';
+  desc.innerHTML = `
+    <p style="font-size: 14px; color: #666; margin: 10px 0;">
+      🎰 Tekrar deneyin! Şansınız başkasında olabilir...
+    </p>
+  `;
+
+  result.style.display = 'block';
+}
+
+// ============ STATS UPDATE ============
+
+function updateStats() {
+  try {
+    document.getElementById('statPlays').textContent = gameState.played;
+    document.getElementById('statWins').textContent = gameState.won;
+    document.getElementById('statStreak').textContent = gameState.streak;
+
+    localStorage.setItem('scratchWinStats', JSON.stringify(gameState));
+    console.log('📊 Stats güncellendi:', gameState);
+
+  } catch (error) {
+    console.error('Stats update hatası:', error);
+  }
+}
+
+// ============ INITIALIZATION ============
+
+function initializeGame() {
+  console.log('🎮 ScratchWin başlatılıyor...');
+
+  const savedStats = localStorage.getItem('scratchWinStats');
+  if (savedStats) {
+    Object.assign(gameState, JSON.parse(savedStats));
+    console.log('📊 Kaydedilmiş stats yüklendi:', gameState);
+  }
+
+  updateStats();
+
+  if (window.ethereum?.selectedAddress) {
+    userWallet = window.ethereum.selectedAddress;
+    updateWalletDisplay(userWallet);
+    enableGameButtons();
+    console.log('✅ Wallet zaten bağlı:', userWallet);
+  }
+
+  if (window.ethereum) {
+    window.ethereum.on('accountsChanged', (accounts) => {
+      if (accounts.length === 0) {
+        console.log('⚠️ Wallet bağlantısı kesildi');
+        userWallet = null;
+        location.reload();
+      } else {
+        console.log('🔄 Account değişti:', accounts[0]);
+        userWallet = accounts[0];
+        updateWalletDisplay(userWallet);
+      }
+    });
+
+    window.ethereum.on('chainChanged', (chainId) => {
+      console.log('🔄 Network değişti:', chainId);
+      if (chainId !== BASE_CHAIN_ID) {
+        alert('⚠️ Lütfen Base Mainnet ağını seçin!');
+        location.reload();
+      }
+    });
+  }
+
+  console.log('✅ ScratchWin hazır!');
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeGame);
+} else {
+  initializeGame();
+}
 
 window.connectWallet = connectWallet;
-window.buyTicket = buyTicket;
-
-if (window.ethereum) {
-  provider = getProvider();
-  provider?.request({ method: 'eth_accounts' }).then(accounts => {
-    if (accounts.length > 0) { walletAddress = accounts[0]; updateWalletUI(); }
-  });
-}
-
-updateStatsUI();
-window.newGame();
+window.newGame = newGame;
